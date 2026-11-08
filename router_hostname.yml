@@ -1,0 +1,6 @@
+---
+- name: Configure Cisco IOS router hostnames
+  hosts: routers
+  gather_facts: false
+  roles:
+    - router_hostname
