@@ -1,0 +1,3 @@
+---
+# Derive the IOS hostname from the inventory alias unless explicitly overridden.
+router_hostname: "{{ inventory_hostname.split('.')[0] }}"

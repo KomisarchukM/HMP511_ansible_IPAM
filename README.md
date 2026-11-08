@@ -18,12 +18,14 @@ Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers.
 
 ```
 site.yml                      # entry playbook
+router_hostname.yml           # Cisco IOS hostname playbook
 hosts                         # inventory (groups: webservers, windows, routers)
 ansible.cfg                   # Ansible settings (inventory = ./hosts)
 group_vars/webservers.yml     # variables for the webservers group
 group_vars/windows.yml        # variables for the windows group (WinRM password env lookup)
 group_vars/routers.yml        # Cisco IOS network_cli settings (password env lookup)
 roles/packages/tasks/main.yml # installs base packages
+roles/router_hostname/        # configures Cisco IOS router hostnames
 roles/wordpress/              # Apache, MariaDB, PHP, WordPress and HTTPS deployment
 scripts/Enable-WinRM.ps1      # enables WinRM on a managed Windows host
 requirements.yml              # Ansible collection dependencies (ansible-galaxy)
@@ -163,6 +165,31 @@ To send an ICMP ping from each router to a destination, use `cisco.ios.ios_ping`
 
 ```bash
 ansible routers -m cisco.ios.ios_ping -a "dest=192.0.2.1"
+```
+
+
+## Configure router hostnames
+
+The `router_hostname.yml` playbook targets only the `[routers]` group. By default, the role derives each IOS hostname from its inventory alias: `rtr1.lab` becomes `rtr1`, and `rtr2.lab` becomes `rtr2`. Changes are saved to startup configuration when a hostname is updated.
+
+Running this playbook changes router configuration. Obtain approval before execution.
+
+Run it against all routers:
+
+```bash
+ansible-playbook router_hostname.yml
+```
+
+Run it against one router with `--limit`:
+
+```bash
+ansible-playbook router_hostname.yml --limit rtr1.lab
+```
+
+Override the hostname for one router if needed:
+
+```bash
+ansible-playbook router_hostname.yml --limit rtr1.lab -e "router_hostname=edge-rtr1"
 ```
 
 ## Adding packages

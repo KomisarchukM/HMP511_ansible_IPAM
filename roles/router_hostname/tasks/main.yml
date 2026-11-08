@@ -1,0 +1,6 @@
+---
+- name: Configure Cisco IOS router hostname
+  cisco.ios.ios_config:
+    lines:
+      - "hostname {{ router_hostname }}"
+    save_when: changed
