@@ -12,8 +12,9 @@ Ansible playbooks for managing Linux hosts on AWS and Cisco IOS routers.
 - Managed Windows host (optional, `windows` inventory group): WinRM over plain HTTP on TCP port 5985 with NTLM transport. The connection plugin is the one built into ansible-core (`ansible_connection=winrm`); since ansible-core 2.20 `ansible.windows.winrm` no longer exists. The password is read from the `windows_pass` environment variable by `group_vars/windows.yml`.
 - Managed Cisco IOS routers (optional, `routers` inventory group): SSH on TCP port 22 using `ansible.netcommon.network_cli` and `cisco.ios.ios`. The password is read from the `routers_pass` environment variable by `group_vars/routers.yml`.
 - Inventory: `./hosts` (groups `webservers`, `windows`, and `routers`).
-- Entry playbook: `site.yml`.
+- Playbooks: `site.yml` targets `webservers`; `router_hostname.yml` targets Cisco IOS routers.
 - Roles: `roles/<name>/`.
+- Router hostname role: `roles/router_hostname/` derives the default IOS hostname from the inventory alias (for example, `rtr1.lab` becomes `rtr1`) and saves changes to startup configuration.
 - Group variables: `group_vars/<group>.yml`.
 - WordPress role: `roles/wordpress/` deploys Apache, MariaDB, PHP, WordPress, and HTTPS to Ubuntu Server 24.04.
 - Collection dependencies: `requirements.yml` (`ansible.mysql`, `ansible.windows`, `ansible.netcommon`, and `cisco.ios`). Install them on the control node with `ansible-galaxy collection install -r requirements.yml`.
@@ -43,12 +44,16 @@ Run from the repository root on the control node:
 ansible-playbook site.yml --syntax-check
 ansible-playbook site.yml --check --diff
 ansible-playbook site.yml
+ansible-playbook router_hostname.yml --syntax-check
+ansible-playbook router_hostname.yml --check --diff
+ansible-playbook router_hostname.yml
+ansible-playbook router_hostname.yml --limit rtr1.lab
 ansible webservers -m ping
 ansible routers -m cisco.ios.ios_facts
 ```
 
 Order: syntax check, then dry run, then real run (only after approval).
-The syntax check is local. Ping, IOS facts, dry-run, and real runs contact managed hosts and require approval before execution; real deployment requires explicit approval after reviewing the dry-run results. `site.yml` targets only `webservers`.
+Syntax checks are local. Ping, IOS facts, dry-runs, and real runs contact managed hosts and require approval before execution. Review the router hostname dry-run and obtain separate approval before applying it. `site.yml` targets only `webservers`; use `router_hostname.yml --limit <router>` to configure one router.
 
 ## Conventions
 
