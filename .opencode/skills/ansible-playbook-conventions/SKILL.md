@@ -51,6 +51,9 @@ roles/<role>/defaults/main.yml  # only if needed; prefer group_vars
 - Cisco IOS devices belong in the `routers` inventory group only. Do not add them to `webservers`; the site playbook and its Linux roles target Ubuntu hosts.
 - Configure the group in `group_vars/routers.yml` with `ansible.netcommon.network_cli` and `cisco.ios.ios`. Declare both collections in `requirements.yml`.
 - Never store the router password in `hosts` or group variables. Read it from the control node environment variable `routers_pass` with `lookup('env', 'routers_pass')`.
+- Configure router hostnames in `roles/router_hostname/`, invoked by the dedicated `router_hostname.yml` playbook; do not add this role to `site.yml`.
+- Default `router_hostname` to the short inventory alias (for example, `rtr1.lab` becomes `rtr1`), while allowing an explicit override.
+- Use `cisco.ios.ios_config` to set the hostname and `save_when: changed` to save the change to startup configuration.
 - Router connectivity and facts checks contact managed devices and require explicit user approval before running.
 
 ## Idempotency

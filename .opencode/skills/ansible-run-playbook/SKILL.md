@@ -66,6 +66,21 @@ Ask for explicit approval before each step that contacts managed hosts. A syntax
 
 The `site.yml` commands target only `webservers`. Append `--limit <host>` (for example `--limit server1`) to a `site.yml` command to run against one webserver. The Cisco IOS facts command targets the `routers` group and contacts those devices.
 
+## Change Cisco IOS router hostnames
+
+`router_hostname.yml` targets only the `routers` group. The role derives each default hostname from its inventory alias (`rtr1.lab` becomes `rtr1`) and saves changes to startup configuration. Use `--limit` to select one router.
+
+The syntax check is local. The dry-run and apply commands connect to routers; obtain explicit approval before the dry-run, review its output, then obtain separate approval before applying the change:
+
+```bash
+ansible-playbook router_hostname.yml --syntax-check
+ansible-playbook router_hostname.yml --check --diff
+ansible-playbook router_hostname.yml
+ansible-playbook router_hostname.yml --limit rtr1.lab
+```
+
+The last command is an example for applying the role to one router instead of the whole group. The default hostname can be overridden with `-e "router_hostname=<name>"` when limiting the run to one router.
+
 ## Verification after a real run
 
 Verify WordPress deployment without displaying credentials:
