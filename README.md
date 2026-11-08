@@ -1,14 +1,15 @@
 # HMP511 Ansible
 
-Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers.
+Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers, with a dynamic inventory served by a Django IPAM web application running in Docker.
 
 ## Requirements
 
 - Control node: Ubuntu Linux with `ansible-core` installed system-wide (tested with 2.21.x). The control node is reachable for maintenance as `master@192.168.1.151`; its SSH password is stored locally in `.secret` under `host_pass` and is never committed.
+- Docker Engine with the Compose plugin on the control node (runs the IPAM web application and API).
 - Managed WordPress host: Ubuntu Server 24.04. Inbound TCP port 80 must be reachable from the internet; port 443 is additionally required when `wordpress_https_enabled` is `true`.
 - Managed Windows host (optional, `windows` group): WinRM enabled on TCP port 5985, reachable from the control node, with the `pywinrm` package and the `ansible.windows` collection installed.
 - Cisco IOS routers (optional, `routers` group): reachable from the control node over SSH on TCP port 22; keep the login password in the control node environment variable `routers_pass`.
-- SSH private key `Stockholm_3.pem` at `/etc/ansible/keys/` on the control node. The key is never committed.
+- SSH private key `Stokholm.pem` at `/etc/ansible/keys/` on the control node (path stored per host in the IPAM database). The key is never committed.
 - Passwordless `sudo` for the `ubuntu` user on each managed host.
 - A public domain name pointing to the managed host's public IP address before enabling `wordpress_https_enabled` to request a Let's Encrypt certificate.
 - The `ansible.mysql`, `ansible.windows`, `ansible.netcommon`, and `cisco.ios` Ansible collections, installed from `requirements.yml` on the control node.
@@ -19,14 +20,21 @@ Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers.
 ```
 site.yml                      # entry playbook
 router_hostname.yml           # Cisco IOS hostname playbook
-hosts                         # inventory (groups: webservers, windows, routers)
-ansible.cfg                   # Ansible settings (inventory = ./hosts)
+dynamic_inventory.py          # dynamic inventory script (queries the IPAM API)
+ansible.cfg                   # Ansible settings (inventory = ./dynamic_inventory.py)
 group_vars/webservers.yml     # variables for the webservers group
 group_vars/windows.yml        # variables for the windows group (WinRM password env lookup)
 group_vars/routers.yml        # Cisco IOS network_cli settings (password env lookup)
 roles/packages/tasks/main.yml # installs base packages
 roles/router_hostname/        # configures Cisco IOS router hostnames
 roles/wordpress/              # Apache, MariaDB, PHP, WordPress and HTTPS deployment
+ipam/                         # Django IPAM app (Docker + SQLite + REST API + admin UI)
+  Dockerfile                  # image for the API/UI container
+  docker-compose.yml          # binds 127.0.0.1:8000 only
+  entrypoint.sh               # migrate + gunicorn
+  ipam/                       # Django project (settings, urls)
+  inventory/                  # models, admin, DRF API, seed command
+  data/                       # SQLite volume (gitignored)
 scripts/Enable-WinRM.ps1      # enables WinRM on a managed Windows host
 requirements.yml              # Ansible collection dependencies (ansible-galaxy)
 requirements.txt              # Python dependencies for the control node (pip)
@@ -35,6 +43,98 @@ AGENTS.md                     # rules for AI coding agents
 .secret                       # local secrets storage (gitignored, never committed)
 .secret.example               # template for .secret with placeholder values
 ```
+
+## Dynamic inventory and IPAM web UI
+
+Hosts are no longer stored in a static `hosts` file. Inventory data lives in SQLite inside the `ipam` Django application:
+
+- **Web UI (Django Admin):** add, edit, and delete hosts and groups at `http://127.0.0.1:8000/admin/`.
+- **REST API:** `GET|POST /api/hosts/`, `GET|POST /api/groups/`, and detail routes `/api/hosts/<id>/`, `/api/groups/<id>/`.
+- **Inventory endpoint:** `GET /api/ansible/inventory/` returns the JSON structure Ansible expects.
+- **Dynamic inventory script:** `./dynamic_inventory.py` calls that endpoint (Python stdlib only) and is what `ansible.cfg` points at.
+- **Group variables** still live in `group_vars/<group>.yml` and are loaded automatically because the inventory script sits in the repository root next to `group_vars/`.
+
+The API/UI container publishes `127.0.0.1:8000` only (not reachable from the LAN). There is no API token; the Django Admin login protects the UI, and the inventory endpoint is open on localhost.
+
+### First-time setup on the Ubuntu control node
+
+Run every command from the repository root.
+
+```bash
+# 1) System prerequisites
+sudo apt update
+sudo apt install -y ansible git python3-winrm python3-paramiko
+ansible-galaxy collection install -r requirements.yml
+
+# Docker Engine + Compose plugin: install from the official Docker docs if missing
+# https://docs.docker.com/engine/install/ubuntu/
+sudo usermod -aG docker "$USER"
+newgrp docker
+
+# 2) SSH key used by the webservers (path is stored in the IPAM database)
+sudo mkdir -p /etc/ansible/keys
+sudo cp /path/to/Stokholm.pem /etc/ansible/keys/Stokholm.pem
+sudo chmod 600 /etc/ansible/keys/Stokholm.pem
+
+# 3) Secrets for the Django container
+cp ipam/.env.example ipam/.env
+# Edit ipam/.env and set DJANGO_SECRET_KEY to a long random string:
+#   python3 -c "import secrets; print(secrets.token_urlsafe(50))"
+
+# 4) Build and start the API/UI
+cd ipam
+docker compose up -d --build
+cd ..
+
+# 5) Create the admin user for the web UI (choose username/password when prompted)
+docker compose -f ipam/docker-compose.yml exec web python manage.py createsuperuser
+
+# 6) Seed the initial hosts (server1, server2, win1, rtr1.lab, rtr2.lab)
+docker compose -f ipam/docker-compose.yml exec web python manage.py seed_inventory
+
+# 7) Make the inventory script executable
+chmod +x dynamic_inventory.py
+```
+
+### Verify the dynamic inventory (no managed hosts contacted)
+
+```bash
+ansible-inventory --graph
+ansible-inventory --list
+ansible-inventory --host server1
+curl -s http://127.0.0.1:8000/api/ansible/inventory/ | python3 -m json.tool
+```
+
+### Use the web UI
+
+1. Open `http://127.0.0.1:8000/admin/` and log in with the superuser from step 5.
+2. Under **Inventory**, add, edit, or delete hosts and groups.
+3. Re-run `ansible-inventory --list` — changes appear immediately (the API is the single source of truth).
+
+Useful API examples:
+
+```bash
+curl -s http://127.0.0.1:8000/api/hosts/ | python3 -m json.tool
+curl -s -X POST http://127.0.0.1:8000/api/hosts/ \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"server3","address":"203.0.113.10","groups":["webservers"],"ansible_user":"ubuntu","ansible_ssh_private_key_file":"/etc/ansible/keys/Stokholm.pem","enabled":true,"variables":{}}'
+```
+
+### Day-2 operations
+
+```bash
+# Restart or stop the IPAM stack
+docker compose -f ipam/docker-compose.yml restart
+docker compose -f ipam/docker-compose.yml down        # data stays in ipam/data/
+
+# Logs
+docker compose -f ipam/docker-compose.yml logs -f
+
+# Re-seed is safe: existing hosts are skipped
+docker compose -f ipam/docker-compose.yml exec web python manage.py seed_inventory
+```
+
+If `ansible-inventory --list` fails with a connection error, the container is not running: `docker compose -f ipam/docker-compose.yml ps`.
 
 ## WordPress configuration
 
@@ -100,7 +200,7 @@ ansible-playbook site.yml --ask-vault-pass --limit server1
 ansible-playbook site.yml --ask-vault-pass --check --diff --limit server2
 ```
 
-Both the `packages` and `wordpress` roles run only on the selected host. The alias must exist in `hosts` and belong to the `webservers` group. With `wordpress_https_enabled: false` each host serves its own inventory IP, so the same group variables work for either server.
+Both the `packages` and `wordpress` roles run only on the selected host. The alias must exist in the IPAM database (Django Admin) and belong to the `webservers` group. With `wordpress_https_enabled: false` each host serves its own inventory IP, so the same group variables work for either server.
 
 ## Verify the Windows host connection
 

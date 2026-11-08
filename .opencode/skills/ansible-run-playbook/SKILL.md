@@ -13,14 +13,16 @@ Check before running. Stop and report if any check fails.
 
 ```bash
 ansible --version                       # ansible-core must be installed
-test -f /etc/ansible/keys/Stockholm_3.pem && echo "key OK"
+test -f /etc/ansible/keys/Stokholm.pem && echo "key OK"
 ansible-galaxy collection install -r requirements.yml
+docker compose -f ipam/docker-compose.yml ps   # IPAM API must be up for dynamic inventory
 ```
 
 Control node environment notes:
 
 - `ansible` is installed system-wide via `apt` and runs under `/usr/bin/python3`. A virtualenv does NOT contain ansible: even with `(env)` active, `which ansible` falls through to `/usr/bin/ansible`, and pip packages installed in the venv are invisible to it. Do not rely on a venv.
 - Python dependencies must be installed system-wide. Plain `pip3 install` fails with `externally-managed-environment` (PEP 668). Use the distro package instead: `sudo apt install python3-winrm`.
+- Inventory is dynamic: `./dynamic_inventory.py` queries `http://127.0.0.1:8000/api/ansible/inventory/` from the Dockerized Django app in `ipam/`. If the container is down, `ansible-inventory --list` fails; start it with `docker compose -f ipam/docker-compose.yml up -d`.
 
 For WordPress, confirm that both passwords are encrypted with Ansible Vault and do not print or expose Vault values while checking configuration. Additionally, when `wordpress_https_enabled` is `true`, confirm that the required domain and email variables are set in `group_vars/webservers.yml`, the public DNS record points to the target host, and ports 80 and 443 are reachable for Let's Encrypt. Plain HTTP mode needs only inbound port 80 and a reachable inventory IP.
 
@@ -119,12 +121,14 @@ ansible-doc -t connection -l                       # available connection plugin
 ansible-galaxy collection list                     # installed collections and their paths
 ansible-config dump | grep -i COLLECTIONS          # effective collection paths
 ansible-inventory --host win1                      # effective host variables
-cat hosts                                          # inventory state
+ansible-inventory --list                           # full dynamic inventory JSON
+docker compose -f ipam/docker-compose.yml logs     # IPAM API logs if inventory fails
 ```
 
 ## Failure handling
 
-- If `ping` fails with a permission error, check the key path and `ansible_user` in `hosts`.
+- If `ping` fails with a permission error, check the key path and `ansible_user` in the IPAM database (`ansible-inventory --host <name>` shows the effective values).
+- If `ansible-inventory` fails with a connection error, the IPAM container is down: `docker compose -f ipam/docker-compose.yml up -d`.
 - Windows/WinRM errors:
   - `the connection plugin 'ansible.windows.winrm' was not found`: since ansible-core 2.20 the WinRM connection plugin is built into ansible-core. Use `ansible_connection=winrm` (short name of `ansible.builtin.winrm`) in the inventory; do not use the `ansible.windows.winrm` FQCN.
   - Connection timeout to port **5986**: the default WinRM scheme is HTTPS. This setup uses plain HTTP on 5985, so the host needs `ansible_winrm_scheme=http` and `ansible_winrm_port=5985`.

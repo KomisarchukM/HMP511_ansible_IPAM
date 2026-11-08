@@ -38,11 +38,11 @@ roles/<role>/defaults/main.yml  # only if needed; prefer group_vars
 ## Windows hosts
 
 - Windows hosts live in the `windows` inventory group only. Never add them to `webservers`: `site.yml` and its roles target Ubuntu (apt, Apache, MariaDB).
-- Connection settings in `hosts`:
+- Connection settings for Windows hosts are stored in the IPAM database (Django Admin / API) and returned by the dynamic inventory:
   - `ansible_connection=winrm` — the plugin built into ansible-core (since 2.20 the `ansible.windows.winrm` FQCN no longer exists).
   - `ansible_winrm_scheme=http` and `ansible_winrm_port=5985` — the listener created by `scripts/Enable-WinRM.ps1` is plain HTTP; the default scheme is HTTPS on 5986 and will time out.
   - `ansible_winrm_transport=ntlm` and `ansible_winrm_server_cert_validation=ignore`.
-- The password must never appear in `hosts` or role files. It is read in `group_vars/windows.yml` through `lookup('env', 'windows_pass')` and set on the control node with `export windows_pass='<password>'`. Mark tasks that handle Windows credentials `no_log: true`.
+- The password must never appear in inventory data or role files. It is read in `group_vars/windows.yml` through `lookup('env', 'windows_pass')` and set on the control node with `export windows_pass='<password>'`. Mark tasks that handle Windows credentials `no_log: true`.
 - WinRM prerequisites on the Windows host: run `scripts/Enable-WinRM.ps1` as Administrator, open inbound TCP 5985 in the AWS Security Group for the control node IP only, and install `python3-winrm` on the control node.
 - Test connectivity with `ansible windows -m ansible.windows.win_ping`; expected success output is `{"ping": "pong"}`.
 
@@ -50,7 +50,7 @@ roles/<role>/defaults/main.yml  # only if needed; prefer group_vars
 
 - Cisco IOS devices belong in the `routers` inventory group only. Do not add them to `webservers`; the site playbook and its Linux roles target Ubuntu hosts.
 - Configure the group in `group_vars/routers.yml` with `ansible.netcommon.network_cli` and `cisco.ios.ios`. Declare both collections in `requirements.yml`.
-- Never store the router password in `hosts` or group variables. Read it from the control node environment variable `routers_pass` with `lookup('env', 'routers_pass')`.
+- Never store the router password in inventory data or group variables. Read it from the control node environment variable `routers_pass` with `lookup('env', 'routers_pass')`.
 - Configure router hostnames in `roles/router_hostname/`, invoked by the dedicated `router_hostname.yml` playbook; do not add this role to `site.yml`.
 - Default `router_hostname` to the short inventory alias (for example, `rtr1.lab` becomes `rtr1`), while allowing an explicit override.
 - Use `cisco.ios.ios_config` to set the hostname and `save_when: changed` to save the change to startup configuration.
@@ -86,4 +86,4 @@ Note: `--check` does not execute `command` or `shell` tasks, and does not catch 
 ## Rules
 
 - Do not run the playbook against hosts without explicit user approval.
-- Do not modify `hosts` without explicit user approval.
+- Do not modify inventory data in the IPAM database without explicit user approval.
