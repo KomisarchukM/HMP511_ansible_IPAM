@@ -12,7 +12,7 @@ Ansible playbooks for managing Linux hosts on AWS and Cisco IOS routers.
 - Managed Windows host (optional, `windows` inventory group): WinRM over plain HTTP on TCP port 5985 with NTLM transport. The connection plugin is the one built into ansible-core (`ansible_connection=winrm`); since ansible-core 2.20 `ansible.windows.winrm` no longer exists. The password is read from the `windows_pass` environment variable by `group_vars/windows.yml`.
 - Managed Cisco IOS routers (optional, `routers` inventory group): SSH on TCP port 22 using `ansible.netcommon.network_cli` and `cisco.ios.ios`. The password is read from the `routers_pass` environment variable by `group_vars/routers.yml`.
 - Inventory: dynamic. `./dynamic_inventory.py` (configured in `ansible.cfg`) fetches hosts and groups from the local Django IPAM API at `http://127.0.0.1:8000/api/ansible/inventory/`. The API runs in Docker (`ipam/docker-compose.yml`) with SQLite storage. Manage hosts through the Django Admin at `http://127.0.0.1:8000/admin/` or the REST API under `/api/`. The static `hosts` file no longer exists.
-- Playbooks: `site.yml` targets `webservers`; `router_hostname.yml` targets Cisco IOS routers.
+- Playbooks: `site.yml` targets `webservers`; `router_hostname.yml` and `router_interfaces.yml` target Cisco IOS routers.
 - Roles: `roles/<name>/`.
 - Router hostname role: `roles/router_hostname/` derives the default IOS hostname from the inventory alias (for example, `rtr1.lab` becomes `rtr1`) and saves changes to startup configuration.
 - Group variables: `group_vars/<group>.yml` (still static files; loaded automatically next to the inventory script).
@@ -51,6 +51,8 @@ ansible-playbook router_hostname.yml --syntax-check
 ansible-playbook router_hostname.yml --check --diff
 ansible-playbook router_hostname.yml
 ansible-playbook router_hostname.yml --limit rtr1.lab
+ansible-playbook router_interfaces.yml --syntax-check
+ansible-playbook router_interfaces.yml
 ansible webservers -m ping
 ansible routers -m cisco.ios.ios_facts
 ```

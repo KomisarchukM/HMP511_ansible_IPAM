@@ -20,6 +20,7 @@ Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers, with
 ```
 site.yml                      # entry playbook
 router_hostname.yml           # Cisco IOS hostname playbook
+router_interfaces.yml         # Cisco IOS interface status report (read-only)
 dynamic_inventory.py          # dynamic inventory script (queries the IPAM API)
 ansible.cfg                   # Ansible settings (inventory = ./dynamic_inventory.py)
 group_vars/webservers.yml     # variables for the webservers group
@@ -265,6 +266,31 @@ To send an ICMP ping from each router to a destination, use `cisco.ios.ios_ping`
 
 ```bash
 ansible routers -m cisco.ios.ios_ping -a "dest=192.0.2.1"
+```
+
+
+## Show router interface status
+
+The `router_interfaces.yml` playbook is read-only: it gathers interface facts with `cisco.ios.ios_facts` and prints each interface's operational/line protocol status, description, and addresses. It changes no router configuration, so there is no `--check --diff` dry run; the syntax check is local and the run only reads facts.
+
+```bash
+export routers_pass='<password>'
+
+ansible-playbook router_interfaces.yml --syntax-check
+
+# All routers
+ansible-playbook router_interfaces.yml
+
+# One router
+ansible-playbook router_interfaces.yml --limit rtr1.lab
+```
+
+Sample output per router:
+
+```
+rtr1.lab | ok: [rtr1.lab] => {
+    "msg": "\nInterface: GigabitEthernet1\n  Status: up/up\n  Description: \n  Addresses: 10.7.7.1, 10.7.7.10\n..."
+}
 ```
 
 

@@ -1,0 +1,21 @@
+---
+- name: Show Cisco IOS router interface status
+  hosts: routers
+  gather_facts: false
+
+  tasks:
+    - name: Gather router interface facts
+      cisco.ios.ios_facts:
+        gather_subset:
+          - interfaces
+      register: facts
+
+    - name: Display interface status
+      ansible.builtin.debug:
+        msg: |
+          {% for iface in facts.ansible_facts.interfaces.values() | sort(attribute='name') %}
+          Interface: {{ iface.name }}
+            Status: {{ iface.operational | default('unknown') }}/{{ iface.lineprotocol | default('unknown') }}
+            Description: {{ iface.description | default('') }}
+            Addresses: {{ iface.addresses | default([]) | map(attribute='address') | join(', ') }}
+          {% endfor %}
