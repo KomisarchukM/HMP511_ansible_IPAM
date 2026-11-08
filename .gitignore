@@ -1,3 +1,8 @@
 /keys/*
 /.secret
 terraform.tfstate
+ipam/.env
+ipam/data/*.sqlite3
+ipam/staticfiles/
+__pycache__/
+*.pyc
