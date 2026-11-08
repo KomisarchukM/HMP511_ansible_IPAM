@@ -2,3 +2,5 @@
 collections:
   - name: ansible.mysql
   - name: ansible.windows
+  - name: ansible.netcommon
+  - name: cisco.ios

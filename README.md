@@ -1,26 +1,28 @@
 # HMP511 Ansible
 
-Ansible playbooks for configuring Linux hosts on AWS.
+Ansible playbooks for configuring Linux hosts on AWS and Cisco IOS routers.
 
 ## Requirements
 
 - Control node: Ubuntu Linux with `ansible-core` installed system-wide (tested with 2.21.x). The control node is reachable for maintenance as `master@192.168.1.151`; its SSH password is stored locally in `.secret` under `host_pass` and is never committed.
 - Managed WordPress host: Ubuntu Server 24.04. Inbound TCP port 80 must be reachable from the internet; port 443 is additionally required when `wordpress_https_enabled` is `true`.
 - Managed Windows host (optional, `windows` group): WinRM enabled on TCP port 5985, reachable from the control node, with the `pywinrm` package and the `ansible.windows` collection installed.
+- Cisco IOS routers (optional, `routers` group): reachable from the control node over SSH on TCP port 22; keep the login password in the control node environment variable `routers_pass`.
 - SSH private key `Stockholm_3.pem` at `/etc/ansible/keys/` on the control node. The key is never committed.
 - Passwordless `sudo` for the `ubuntu` user on each managed host.
 - A public domain name pointing to the managed host's public IP address before enabling `wordpress_https_enabled` to request a Let's Encrypt certificate.
-- The `ansible.mysql` Ansible collection, installed from `requirements.yml` on the control node.
+- The `ansible.mysql`, `ansible.windows`, `ansible.netcommon`, and `cisco.ios` Ansible collections, installed from `requirements.yml` on the control node.
 - Python package `pywinrm` (required for the Windows group), installed from `requirements.txt` on the control node: `pip install -r requirements.txt`. On distributions with an externally managed Python (PEP 668), use a virtual environment or `sudo apt install python3-winrm` instead of plain `pip`.
 
 ## Project layout
 
 ```
 site.yml                      # entry playbook
-hosts                         # inventory (groups: webservers, windows)
+hosts                         # inventory (groups: webservers, windows, routers)
 ansible.cfg                   # Ansible settings (inventory = ./hosts)
 group_vars/webservers.yml     # variables for the webservers group
 group_vars/windows.yml        # variables for the windows group (WinRM password env lookup)
+group_vars/routers.yml        # Cisco IOS network_cli settings (password env lookup)
 roles/packages/tasks/main.yml # installs base packages
 roles/wordpress/              # Apache, MariaDB, PHP, WordPress and HTTPS deployment
 scripts/Enable-WinRM.ps1      # enables WinRM on a managed Windows host
@@ -49,7 +51,7 @@ ansible-vault encrypt_string --ask-vault-pass --stdin-name wordpress_admin_passw
 
 Never put plaintext passwords or the Vault password in the repository. At playbook runtime, provide the Vault password interactively with `--ask-vault-pass` or use a securely stored Vault password file that is not committed. WP-CLI receives the initial passwords through standard input, and password-bearing Ansible tasks suppress their output. WordPress stores its administrator password as a hash in the database. The database password must also be available to WordPress at runtime, so it is written to `wp-config.php`, owned by `root:www-data` with mode `0640`.
 
-Install the required collection on the control node:
+Install the required Ansible collections on the control node:
 
 ```bash
 ansible-galaxy collection install -r requirements.yml
@@ -132,6 +134,29 @@ ansible windows -m ansible.windows.win_ping
 A successful connection returns `win1 | SUCCESS => {"changed": false, "ping": "pong"}`. To test a single host, pass the alias: `ansible win1 -m ansible.windows.win_ping`.
 
 The connection uses Basic authentication with unencrypted transport, which is acceptable only inside a private network. Keep port 5985 restricted to the control node IP.
+
+## Manage Cisco IOS routers
+
+The `[routers]` inventory group contains Cisco IOS devices managed over SSH with `ansible.netcommon.network_cli` and the `cisco.ios.ios` network OS plugin. The `site.yml` playbook targets only `webservers`; it does not run the Linux or WordPress roles on routers.
+
+The router password is not stored in the repository. Set `routers_pass` in the control node shell before running Ansible:
+
+```bash
+export routers_pass='<password>'
+```
+
+Install the collections listed in `requirements.yml` with `ansible-galaxy collection install -r requirements.yml`. To gather IOS facts, run the following read-only query after obtaining approval; it connects to the routers:
+
+```bash
+ansible routers -m cisco.ios.ios_facts
+```
+
+
+To send an ICMP ping from each router to a destination, use `cisco.ios.ios_ping` with the destination address. This command also connects to the routers:
+
+```bash
+ansible routers -m cisco.ios.ios_ping -a "dest=192.0.2.1"
+```
 
 ## Adding packages
 

@@ -46,6 +46,13 @@ roles/<role>/defaults/main.yml  # only if needed; prefer group_vars
 - WinRM prerequisites on the Windows host: run `scripts/Enable-WinRM.ps1` as Administrator, open inbound TCP 5985 in the AWS Security Group for the control node IP only, and install `python3-winrm` on the control node.
 - Test connectivity with `ansible windows -m ansible.windows.win_ping`; expected success output is `{"ping": "pong"}`.
 
+## Cisco IOS routers
+
+- Cisco IOS devices belong in the `routers` inventory group only. Do not add them to `webservers`; the site playbook and its Linux roles target Ubuntu hosts.
+- Configure the group in `group_vars/routers.yml` with `ansible.netcommon.network_cli` and `cisco.ios.ios`. Declare both collections in `requirements.yml`.
+- Never store the router password in `hosts` or group variables. Read it from the control node environment variable `routers_pass` with `lookup('env', 'routers_pass')`.
+- Router connectivity and facts checks contact managed devices and require explicit user approval before running.
+
 ## Idempotency
 
 - Every task must be safe to run repeatedly.
@@ -60,7 +67,7 @@ roles/<role>/defaults/main.yml  # only if needed; prefer group_vars
 ## Naming
 
 - Task names, handler names, and comments are in English.
-- Start each task name with a verb: "Install base packages", "Restart nginx".
+- Start each task name with a verb: `Install base packages`, `Restart nginx`.
 
 ## Verification before running
 

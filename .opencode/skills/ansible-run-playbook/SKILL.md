@@ -1,6 +1,6 @@
 ---
 name: ansible-run-playbook
-description: Procedure for checking inventory connectivity and running Ansible playbooks against webservers and Windows hosts from the Ubuntu control node. Use when the user asks to run, test, verify, or deploy a playbook, check host connectivity with ansible ping or win_ping, or diagnose the control node over SSH.
+description: Procedure for checking inventory connectivity and running Ansible playbooks against webservers, Windows hosts, and Cisco IOS routers from the Ubuntu control node. Use when the user asks to run, test, verify, or deploy a playbook, check host connectivity, or diagnose the control node over SSH.
 ---
 
 # Run Ansible Playbook
@@ -31,6 +31,12 @@ python3 -c "import winrm; print('pywinrm OK')"
 export windows_pass='<password>'
 ```
 
+For Cisco IOS routers, install the `ansible.netcommon` and `cisco.ios` collections from `requirements.yml` and export the password before connecting:
+
+```bash
+export routers_pass='<password>'
+```
+
 ## Steps
 
 Ask for explicit approval before each step that contacts managed hosts. A syntax check is local and does not need host approval. Review the dry-run output and obtain a separate explicit approval before applying changes.
@@ -47,6 +53,7 @@ Ask for explicit approval before each step that contacts managed hosts. A syntax
    ```bash
    ansible webservers -m ansible.builtin.ping
    ansible windows -m ansible.windows.win_ping   # requires export windows_pass=...
+   ansible routers -m cisco.ios.ios_facts       # requires export routers_pass=...
    ```
 4. Dry run (contacts hosts, changes nothing; ask for approval first):
    ```bash
@@ -57,7 +64,7 @@ Ask for explicit approval before each step that contacts managed hosts. A syntax
    ansible-playbook site.yml --ask-vault-pass
    ```
 
-Append `--limit <host>` (for example `--limit server1`) to any playbook command to run against a single inventory host instead of the whole `webservers` group.
+The `site.yml` commands target only `webservers`. Append `--limit <host>` (for example `--limit server1`) to a `site.yml` command to run against one webserver. The Cisco IOS facts command targets the `routers` group and contacts those devices.
 
 ## Verification after a real run
 
@@ -111,5 +118,5 @@ cat hosts                                          # inventory state
 - If a task fails, stop and report the task name and error. Do not retry with different options without approval.
 - Do not run with `--force-handlers` or `--skip-tags` unless the user asks.
 - If `wordpress_https_enabled` is `true` and Certbot cannot issue a certificate, stop and verify domain DNS and inbound port 80 before proposing a retry; do not bypass certificate checks.
-- On the very first deployment, check mode stops at service tasks (for example `Start and enable MariaDB`) with `Could not find the requested service`, because check mode does not install packages. This is expected; review the dry-run output up to that point and proceed to the real run after approval. Do not treat it as a role failure.
+- On the very first deployment, check mode stops at service tasks (for example `Start and enable MariaDB`) with `Could not find the requested service`, because check mode does not install packages. This is expected; review the output up to that point and proceed to the real run after approval. Do not treat it as a role failure.
 - Check mode does not execute WP-CLI or Certbot command tasks, so successful dry-run output does not prove site installation or certificate issuance.
