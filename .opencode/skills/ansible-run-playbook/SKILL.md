@@ -91,7 +91,7 @@ The control node is reachable from the dev machine as `master@192.168.1.151`. Th
 
 ```powershell
 $pass = ((Get-Content .secret | Where-Object { $_ -like 'host_pass=*' }) -replace '^host_pass=','').Trim()
-echo y | & "C:Program FilesPuTTYplink.exe" -ssh -pw $pass master@192.168.1.151 "cd /home/master/HMP511_ansible && <read-only command>"
+echo y | & "C:\Program Files\PuTTY\plink.exe" -ssh -pw $pass master@192.168.1.151 "cd /home/master/HMP511_ansible && <read-only command>"
 ```
 
 `echo y |` accepts the host key on the first connection. Ask for explicit user approval before connecting. Only read-only diagnostics are allowed over SSH (no file edits, no installs, no playbook runs); anything that changes state needs separate approval and should be done by the user or through an approved playbook run.
