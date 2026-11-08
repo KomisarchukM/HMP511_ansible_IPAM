@@ -107,7 +107,7 @@ The `[windows]` inventory group contains a Windows host managed over WinRM with 
 First, enable WinRM on the Windows host. Run PowerShell as Administrator on that host and execute:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .Enable-WinRM.ps1
+powershell -ExecutionPolicy Bypass -File .\Enable-WinRM.ps1
 ```
 
 The script enables the WinRM listener, allows Basic authentication, sets the network profile to Private, raises the module memory and timeout limits, and opens the firewall port 5985 for the Private profile. In the AWS Security Group of the Windows host, allow inbound TCP 5985 from the control node IP only.
@@ -149,6 +149,13 @@ Install the collections listed in `requirements.yml` with `ansible-galaxy collec
 
 ```bash
 ansible routers -m cisco.ios.ios_facts
+```
+
+
+To send an ICMP ping from each router to a destination, use `cisco.ios.ios_ping` with the destination address. This command also connects to the routers:
+
+```bash
+ansible routers -m cisco.ios.ios_ping -a "dest=192.0.2.1"
 ```
 
 ## Adding packages
