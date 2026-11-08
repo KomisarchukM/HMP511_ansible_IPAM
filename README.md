@@ -145,6 +145,13 @@ The router password is not stored in the repository. Set `routers_pass` in the c
 export routers_pass='<password>'
 ```
 
+On the Ubuntu control node, install Paramiko for Ansible's system Python:
+
+```bash
+sudo apt install python3-paramiko
+```
+
+
 Install the collections listed in `requirements.yml` with `ansible-galaxy collection install -r requirements.yml`. To gather IOS facts, run the following read-only query after obtaining approval; it connects to the routers:
 
 ```bash
